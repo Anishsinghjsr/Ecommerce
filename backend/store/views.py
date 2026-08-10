@@ -121,4 +121,9 @@ def register_view(request):
         user = serializer.save()
         return Response({"message": "User created successfully", "user": UserSerializer(user).data}, status=status.HTTP_201_CREATED)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+from django.http import JsonResponse
+
+def health_check(request):
+    return JsonResponse({"status": "ok"})
     
