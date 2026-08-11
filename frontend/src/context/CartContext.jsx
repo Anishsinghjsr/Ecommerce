@@ -1,91 +1,239 @@
-import { createContext,useContext,useState,useEffect } from "react";
-import { authFetch, getAccessToken } from "../utils/auth";
-
+import { createContext, useContext, useEffect, useState } from "react";
 
 const CartContext = createContext();
 
+export function CartProvider({ children }) {
+  const [cart, setCart] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-export const CartProvider =({ children})=>{
-    const BASEURL= import.meta.env.VITE_DJANGO_BASE_URL;
-    const [cartItems,setCartItems] =useState([]);
-    const [total, setTotal] = useState(0);
+  const BASEURL = import.meta.env.VITE_DJANGO_BASE_URL;
 
+  // Get JWT access token
+  const getAccessToken = () => {
+    return localStorage.getItem("access_token");
+  };
 
-     const fetchCart = async () => {
-        try {
-            const res = await authFetch(`${BASEURL}/store/cart/`)
-            const data = await res.json();
-            setCartItems(data.items || []);
-            setTotal(data.total || 0);
-        } catch (error) {
-            console.error("Error fetching cart:", error);
-        }
+  // ==========================================
+  // GET CART
+  // ==========================================
+
+  const getCart = async () => {
+    const token = getAccessToken();
+
+    if (!token) {
+      setCart(null);
+      setLoading(false);
+      return;
     }
 
-    useEffect(() => {
-        fetchCart();
-    }, []);
+    try {
+      const response = await fetch(`${BASEURL}/store/cart/`, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      });
 
+      if (response.status === 401) {
+        console.log("JWT token expired or invalid");
 
-    const addToCart = async (productId) => {
-        try{
-            await authFetch(`${BASEURL}/store/cart/add/`, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify({ product_id: productId }),
-            });
-            fetchCart();
-        } catch (error) {
-            console.error("Error adding to cart:", error);
-        }
+        localStorage.removeItem("access_token");
+        localStorage.removeItem("refresh_token");
+
+        setCart(null);
+        setLoading(false);
+        return;
+      }
+
+      if (!response.ok) {
+        throw new Error(`Cart request failed: ${response.status}`);
+      }
+
+      const data = await response.json();
+      setCart(data);
+    } catch (error) {
+      console.error("Cart error:", error);
+      setCart(null);
+    } finally {
+      setLoading(false);
     }
-   
-    const removeFromCart = async (itemId) => {
-        try{
-            await authFetch(`${BASEURL}/store/cart/remove/`, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify({ item_id: itemId }),
-            });
-            fetchCart();
-        } catch (error) {
-            console.error("Error removing from cart:", error);
-        }
+  };
+
+  // ==========================================
+  // ADD TO CART
+  // ==========================================
+
+  const addToCart = async (productId) => {
+    const token = getAccessToken();
+
+    if (!token) {
+      throw new Error("Please login first");
     }
 
-       const updateQuantity = async (itemId, quantity) => {
-        if (quantity < 1){
-            await removeFromCart(itemId);
-            return;
-        }
-        try{
-            await authFetch(`${BASEURL}/store/cart/update/`, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify({ item_id: itemId, quantity }),
-            });
-            fetchCart();
-        } catch (error) {
-            console.error("Error updating quantity:", error);
-        }
-    }
-    const clearCart =() =>{
-        setCartItems([]);
-        setTotal(0);
-    }
-        return (
-        <CartContext.Provider
-        value={{ cartItems,total, addToCart, removeFromCart, updateQuantity,clearCart }}>
-            {children}
-        </CartContext.Provider>
-    );
+    try {
+      const response = await fetch(`${BASEURL}/store/cart/add/`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          product_id: productId,
+        }),
+      });
 
-};
+      if (response.status === 401) {
+        localStorage.removeItem("access_token");
+        localStorage.removeItem("refresh_token");
 
-export const useCart = ()=> useContext(CartContext);
+        throw new Error("Session expired. Please login again.");
+      }
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+
+        throw new Error(
+          errorData.error ||
+            `Failed to add product: ${response.status}`
+        );
+      }
+
+      const data = await response.json();
+      setCart(data.cart);
+
+      return data;
+    } catch (error) {
+      console.error("Add to cart error:", error);
+      throw error;
+    }
+  };
+
+  // ==========================================
+  // REMOVE FROM CART
+  // ==========================================
+
+  const removeFromCart = async (itemId) => {
+    const token = getAccessToken();
+
+    if (!token) {
+      throw new Error("Please login first");
+    }
+
+    try {
+      const response = await fetch(`${BASEURL}/store/cart/remove/`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          item_id: itemId,
+        }),
+      });
+
+      if (response.status === 401) {
+        localStorage.removeItem("access_token");
+        localStorage.removeItem("refresh_token");
+
+        throw new Error("Session expired. Please login again.");
+      }
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+
+        throw new Error(
+          errorData.error ||
+            `Failed to remove item: ${response.status}`
+        );
+      }
+
+      await getCart();
+    } catch (error) {
+      console.error("Remove from cart error:", error);
+      throw error;
+    }
+  };
+
+  // ==========================================
+  // UPDATE CART QUANTITY
+  // ==========================================
+
+  const updateCartQuantity = async (itemId, quantity) => {
+    const token = getAccessToken();
+
+    if (!token) {
+      throw new Error("Please login first");
+    }
+
+    try {
+      const response = await fetch(`${BASEURL}/store/cart/update/`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          item_id: itemId,
+          quantity: quantity,
+        }),
+      });
+
+      if (response.status === 401) {
+        localStorage.removeItem("access_token");
+        localStorage.removeItem("refresh_token");
+
+        throw new Error("Session expired. Please login again.");
+      }
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+
+        throw new Error(
+          errorData.error ||
+            `Failed to update cart: ${response.status}`
+        );
+      }
+
+      await getCart();
+    } catch (error) {
+      console.error("Update cart error:", error);
+      throw error;
+    }
+  };
+
+  // ==========================================
+  // LOAD CART
+  // ==========================================
+
+  useEffect(() => {
+    getCart();
+  }, []);
+
+  // ==========================================
+  // CONTEXT
+  // ==========================================
+
+  return (
+    <CartContext.Provider
+      value={{
+        cart,
+        loading,
+        getCart,
+        addToCart,
+        removeFromCart,
+        updateCartQuantity,
+      }}
+    >
+      {children}
+    </CartContext.Provider>
+  );
+}
+
+// ==========================================
+// CUSTOM HOOK
+// ==========================================
+
+export function useCart() {
+  return useContext(CartContext);
+}

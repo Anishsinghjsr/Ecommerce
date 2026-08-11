@@ -1,129 +1,458 @@
+# from rest_framework.response import Response
+# from rest_framework.decorators import api_view, permission_classes
+# from rest_framework.permissions import IsAuthenticated, AllowAny
+# from django.contrib.auth.models import User
+# from .serializers import RegisterSerializer, UserSerializer
+# from rest_framework import status
+# from .models import Category, Product ,Cart, CartItem,Order, OrderItem
+# from .serializers import CategorySerializer, ProductSerializer, CartSerializer , CartItemSerializer
+
+# @api_view(['GET'])
+
+# def product_list(request):
+#     products = Product.objects.all()
+#     serializer = ProductSerializer(products, many=True)
+#     return Response(serializer.data)
+
+# @api_view(['GET'])
+
+# def product_detail(request, pk):
+#     try:
+#         product = Product.objects.get(id=pk)
+#         serializer = ProductSerializer(product, context = {'request': request})
+#         return Response(serializer.data)
+#     except Product.DoesNotExist:
+#         return Response({'error': 'Product not found'}, status=404)
+
+# @api_view(['GET'])
+
+# def category_list(request):
+#     categories = Category.objects.all()
+#     serializer = CategorySerializer(categories, many=True)
+#     return Response(serializer.data)
+
+# @api_view(['GET'])
+# @permission_classes([IsAuthenticated])
+# def get_cart(request):
+#     cart, created = Cart.objects.get_or_create(user=request.user)
+#     serializer = CartSerializer(cart)
+#     return Response(serializer.data)
+
+# @api_view(['POST'])
+# @permission_classes([IsAuthenticated])
+# def add_to_cart(request):
+#     product_id = request.data.get('product_id')
+#     product = Product.objects.get(id=product_id)
+#     cart, created = Cart.objects.get_or_create(user=request.user)
+#     item, created = CartItem.objects.get_or_create(cart=cart, product=product)
+#     if not created:
+#         item.quantity += 1
+#         item.save()
+#     return Response({'message':'Product added to cart',"cart":CartSerializer(cart).data})
+# @api_view(['POST'])
+# @permission_classes([IsAuthenticated])
+# def remove_from_cart(request):
+#     item_id = request.data.get('item_id')
+#     CartItem.objects.filter(id=item_id).delete()
+#     return Response({'message':'Item removed from cart'})
+# @api_view(['POST'])
+# @permission_classes([IsAuthenticated])
+# def update_cart_quantity(request):
+#     item_id = request.data.get('item_id')
+#     quantity = request.data.get('quantity')
+   
+#     if not item_id or quantity is None:
+#         return Response({'error': 'Item ID and quantity are required'}, status=400)
+    
+#     try:
+#         item = CartItem.objects.get(id=item_id)
+#         if int(quantity) < 1:
+#             item.delete()
+#             return Response({'error': 'Quantity must be at least 1'}, status=400)
+        
+#         item.quantity = quantity
+#         item.save()
+#         serializer = CartItemSerializer(item)
+#         return Response(serializer.data)
+#     except CartItem.DoesNotExist:
+#         return Response({'error': 'Cart item not found'}, status=404)
+
+# @api_view(['POST'])
+# @permission_classes([IsAuthenticated])
+# def create_order(request):
+#     try:
+#         data = request.data
+#         name = data.get('name')
+#         address = data.get('address')
+#         phone = data.get('phone')
+#         payment_method = data.get('payment_method','COD')
+
+        
+#         if not phone.isdigit() or len(phone) < 10:
+#             return Response({'error': 'Invalid phone number'}, status=400)
+        
+        
+#         cart , created = Cart.objects.get_or_create(user=request.user)
+#         if not cart.items.exists():
+#             return Response({'error': 'Cart is empty'}, status=400)
+        
+#         total = sum([item.product.price * item.quantity for item in cart.items.all()])
+
+#         order = Order.objects.create(user = request.user, total_amount=total)
+
+#         for item in cart.items.all():
+#             OrderItem.objects.create(
+#                 order=order,
+#                 product=item.product,
+#                 quantity=item.quantity,
+#                 price=item.product.price
+#             )
+        
+#         cart.items.all().delete()
+#         return Response({'message': 'Order created successfully', 'order_id': order.id})
+#     except Exception as e:
+#         return Response({'error': str(e)}, status=500)
+
+# @api_view(['POST'])
+# @permission_classes([AllowAny])
+# def register_view(request):
+#     serializer = RegisterSerializer(data=request.data)
+#     if serializer.is_valid():
+#         user = serializer.save()
+#         return Response({"message": "User created successfully", "user": UserSerializer(user).data}, status=status.HTTP_201_CREATED)
+#     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+# from django.http import JsonResponse
+
+# def health_check(request):
+#     return JsonResponse({"status": "ok"})
+    
+
+
 from rest_framework.response import Response
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from django.contrib.auth.models import User
-from .serializers import RegisterSerializer, UserSerializer
 from rest_framework import status
-from .models import Category, Product ,Cart, CartItem,Order, OrderItem
-from .serializers import CategorySerializer, ProductSerializer, CartSerializer , CartItemSerializer
+
+from .models import Category, Product, Cart, CartItem, Order, OrderItem
+from .serializers import (
+    RegisterSerializer,
+    UserSerializer,
+    CategorySerializer,
+    ProductSerializer,
+    CartSerializer,
+    CartItemSerializer,
+)
+
+from django.http import JsonResponse
+
+
+# ==========================================
+# PRODUCTS
+# ==========================================
 
 @api_view(['GET'])
-
+@permission_classes([AllowAny])
 def product_list(request):
     products = Product.objects.all()
-    serializer = ProductSerializer(products, many=True)
+
+    serializer = ProductSerializer(
+        products,
+        many=True,
+        context={'request': request}
+    )
+
     return Response(serializer.data)
 
-@api_view(['GET'])
 
+@api_view(['GET'])
+@permission_classes([AllowAny])
 def product_detail(request, pk):
     try:
         product = Product.objects.get(id=pk)
-        serializer = ProductSerializer(product, context = {'request': request})
+
+        serializer = ProductSerializer(
+            product,
+            context={'request': request}
+        )
+
         return Response(serializer.data)
+
     except Product.DoesNotExist:
-        return Response({'error': 'Product not found'}, status=404)
+        return Response(
+            {'error': 'Product not found'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+
+
+# ==========================================
+# CATEGORIES
+# ==========================================
 
 @api_view(['GET'])
-
+@permission_classes([AllowAny])
 def category_list(request):
     categories = Category.objects.all()
-    serializer = CategorySerializer(categories, many=True)
+
+    serializer = CategorySerializer(
+        categories,
+        many=True,
+        context={'request': request}
+    )
+
     return Response(serializer.data)
+
+
+# ==========================================
+# CART
+# ==========================================
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_cart(request):
-    cart, created = Cart.objects.get_or_create(user=request.user)
+    cart, created = Cart.objects.get_or_create(
+        user=request.user
+    )
+
     serializer = CartSerializer(cart)
+
     return Response(serializer.data)
+
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def add_to_cart(request):
     product_id = request.data.get('product_id')
-    product = Product.objects.get(id=product_id)
-    cart, created = Cart.objects.get_or_create(user=request.user)
-    item, created = CartItem.objects.get_or_create(cart=cart, product=product)
+
+    if not product_id:
+        return Response(
+            {'error': 'Product ID is required'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    try:
+        product = Product.objects.get(id=product_id)
+
+    except Product.DoesNotExist:
+        return Response(
+            {'error': 'Product not found'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+
+    cart, created = Cart.objects.get_or_create(
+        user=request.user
+    )
+
+    item, created = CartItem.objects.get_or_create(
+        cart=cart,
+        product=product
+    )
+
     if not created:
         item.quantity += 1
         item.save()
-    return Response({'message':'Product added to cart',"cart":CartSerializer(cart).data})
+
+    return Response({
+        'message': 'Product added to cart',
+        'cart': CartSerializer(cart).data
+    })
+
+
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def remove_from_cart(request):
     item_id = request.data.get('item_id')
-    CartItem.objects.filter(id=item_id).delete()
-    return Response({'message':'Item removed from cart'})
+
+    if not item_id:
+        return Response(
+            {'error': 'Item ID is required'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    deleted, _ = CartItem.objects.filter(
+        id=item_id,
+        cart__user=request.user
+    ).delete()
+
+    if deleted == 0:
+        return Response(
+            {'error': 'Cart item not found'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+
+    return Response({
+        'message': 'Item removed from cart'
+    })
+
+
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def update_cart_quantity(request):
     item_id = request.data.get('item_id')
     quantity = request.data.get('quantity')
-   
+
     if not item_id or quantity is None:
-        return Response({'error': 'Item ID and quantity are required'}, status=400)
-    
+        return Response(
+            {'error': 'Item ID and quantity are required'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
     try:
-        item = CartItem.objects.get(id=item_id)
-        if int(quantity) < 1:
+        item = CartItem.objects.get(
+            id=item_id,
+            cart__user=request.user
+        )
+
+        quantity = int(quantity)
+
+        if quantity < 1:
             item.delete()
-            return Response({'error': 'Quantity must be at least 1'}, status=400)
-        
+
+            return Response({
+                'message': 'Item removed from cart'
+            })
+
         item.quantity = quantity
         item.save()
+
         serializer = CartItemSerializer(item)
+
         return Response(serializer.data)
+
     except CartItem.DoesNotExist:
-        return Response({'error': 'Cart item not found'}, status=404)
+        return Response(
+            {'error': 'Cart item not found'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+
+    except ValueError:
+        return Response(
+            {'error': 'Quantity must be a number'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+
+# ==========================================
+# ORDERS
+# ==========================================
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def create_order(request):
+
     try:
         data = request.data
+
         name = data.get('name')
         address = data.get('address')
         phone = data.get('phone')
-        payment_method = data.get('payment_method','COD')
+        payment_method = data.get('payment_method', 'COD')
 
-        
+        if not name:
+            return Response(
+                {'error': 'Name is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if not address:
+            return Response(
+                {'error': 'Address is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if not phone:
+            return Response(
+                {'error': 'Phone number is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
         if not phone.isdigit() or len(phone) < 10:
-            return Response({'error': 'Invalid phone number'}, status=400)
-        
-        
-        cart , created = Cart.objects.get_or_create(user=request.user)
-        if not cart.items.exists():
-            return Response({'error': 'Cart is empty'}, status=400)
-        
-        total = sum([item.product.price * item.quantity for item in cart.items.all()])
+            return Response(
+                {'error': 'Invalid phone number'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
-        order = Order.objects.create(user = request.user, total_amount=total)
+        cart, created = Cart.objects.get_or_create(
+            user=request.user
+        )
+
+        if not cart.items.exists():
+            return Response(
+                {'error': 'Cart is empty'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        total = sum(
+            item.product.price * item.quantity
+            for item in cart.items.all()
+        )
+
+        order = Order.objects.create(
+            user=request.user,
+            total_amount=total
+        )
 
         for item in cart.items.all():
+
             OrderItem.objects.create(
                 order=order,
                 product=item.product,
                 quantity=item.quantity,
                 price=item.product.price
             )
-        
+
         cart.items.all().delete()
-        return Response({'message': 'Order created successfully', 'order_id': order.id})
+
+        return Response({
+            'message': 'Order created successfully',
+            'order_id': order.id,
+            'total_amount': total,
+            'payment_method': payment_method
+        })
+
     except Exception as e:
-        return Response({'error': str(e)}, status=500)
+        return Response(
+            {'error': str(e)},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+# ==========================================
+# REGISTER
+# ==========================================
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def register_view(request):
-    serializer = RegisterSerializer(data=request.data)
-    if serializer.is_valid():
-        user = serializer.save()
-        return Response({"message": "User created successfully", "user": UserSerializer(user).data}, status=status.HTTP_201_CREATED)
-    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-from django.http import JsonResponse
+    serializer = RegisterSerializer(
+        data=request.data
+    )
+
+    if serializer.is_valid():
+
+        user = serializer.save()
+
+        return Response(
+            {
+                'message': 'User created successfully',
+                'user': UserSerializer(user).data
+            },
+            status=status.HTTP_201_CREATED
+        )
+
+    return Response(
+        serializer.errors,
+        status=status.HTTP_400_BAD_REQUEST
+    )
+
+
+# ==========================================
+# HEALTH CHECK
+# ==========================================
 
 def health_check(request):
-    return JsonResponse({"status": "ok"})
-    
+    return JsonResponse({
+        'status': 'ok'
+    })
