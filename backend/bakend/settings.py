@@ -146,8 +146,6 @@ CORS_ALLOWED_ORIGINS = [
     "https://ecommerce-4tcn.vercel.app",
 ]
 
-CORS_ALLOW_CREDENTIALS = True
-
 CSRF_TRUSTED_ORIGINS = [
     "https://ecommerce-4tcn.vercel.app",
 ]
